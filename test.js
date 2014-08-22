@@ -14,7 +14,10 @@ output.saveAlpha(1);
 var white = output.colorAllocate(255, 255, 255, 100);
 output.fill(0, 0, white);
 
-['aaa.jpg', 'aaa1.jpg', 'aaa2.jpg'].forEach(function(image) {
+var imgs = ['aaa2.jpg', 'aaa.jpg', 'aaa1.jpg'];
+var i = 0;
+
+function modify(image, callback) {
     gd.openJpeg(image, function(err, input) {
         if (!!err) {
             console.log(err);
@@ -40,9 +43,15 @@ output.fill(0, 0, white);
             if (!!err) {
                 console.log(err);
             }
+            if (i < imgs.length - 1) {
+                var next = imgs[++i];
+                callback.call({}, next, modify);
+            }
         });
     });
-});
+};
+
+modify(imgs[i], modify);
 
 function colorAsRGB(color) {
     var res = [];
