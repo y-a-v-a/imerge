@@ -8,20 +8,19 @@ var fuzz = 20;
 var target = __dirname + '/public/images';
 
 // set canvas with base size and white background
-var output = gd.createTrueColor(800,600);
+var output = gd.createTrueColor(800, 600);
 output.saveAlpha(1);
 
-var white = output.colorAllocate(255,255,255,100);
-output.fill(0,0, white);
+var white = output.colorAllocate(255, 255, 255, 100);
+output.fill(0, 0, white);
 
-// get image
-['aaa1.jpg', 'aaa2.jpg', 'aaa.jpg'].forEach(function(image, index) {
+['aaa.jpg', 'aaa1.jpg', 'aaa2.jpg'].forEach(function(image) {
     gd.openJpeg(image, function(err, input) {
         if (!!err) {
             console.log(err);
         }
-        var temp = gd.createTrueColor(800,600);
-        input.copyResized(temp, 0,0,0,0,800,600, input.width, input.height);
+        var temp = gd.createTrueColor(800, 600);
+        input.copyResized(temp, 0, 0, 0, 0, 800, 600, input.width, input.height);
 
         var randomX = Math.floor(Math.random() * input.width);
         var randomY = Math.floor(Math.random() * input.height);
@@ -41,12 +40,6 @@ output.fill(0,0, white);
             if (!!err) {
                 console.log(err);
             }
-        });
-        gd.openPng(newFile, function(err, img) {
-            if (!!err) {
-                console.log(err);
-            }
-            ouput = img;
         });
     });
 });
