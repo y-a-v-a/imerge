@@ -6,6 +6,16 @@
   </head>
   <body>
     <h1><%= title %></h1>
-    <p>Welcome to <%= title %></p>
+    <img id="result" src="/images/loading.gif" alt="">
+    <script src="/javascripts/jquery-2.1.1.js"></script>
+    <script>
+    $.ajax('/image')
+    .done(function(data) {
+        console.log(data);
+        $('#result').attr('src', data);
+    }).fail(function(a,b,c) {
+        console.log(b,c);
+    })
+    </script>
   </body>
 </html>
