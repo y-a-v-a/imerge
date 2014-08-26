@@ -18,6 +18,8 @@ function md5(str) {
 var fuzz = 30;
 
 var wordUrl = 'http://localhost:80/wordgenapi/www/v1/get.php?key=694b0426';
+var googleUrl = 'https://www.googleapis.com/customsearch/v1?key=AIzaSyCx5aAq9UeSnFbFxmihn6Vr6wCU2D-49O8'
+    + '&cx=001019564263977871109:d0hasykupmy&alt=json&searchType=image&imgType=photo&q=';
 
 /* GET home page. */
 router.get('/', function(req, res) {
@@ -78,7 +80,7 @@ function getImage(URL, callback) {
             var newName = path.normalize(__dirname + '/../cache/' + md5(data.toString('ascii')) + '.jpg');
             fs.exists(newName, function(exists) {
                 if (!exists) {
-                    img.saveJpeg(newName, 0);
+                    img.saveJpeg(newName, 50);
                 }
                 callback(null, newName);
             });
@@ -89,7 +91,7 @@ function getImage(URL, callback) {
 }
 
 function getImages(res, word) {
-    var URL = 'https://www.googleapis.com/customsearch/v1?key=AIzaSyCx5aAq9UeSnFbFxmihn6Vr6wCU2D-49O8&cx=001019564263977871109:d0hasykupmy&alt=json&searchType=image&imgType=photo&q=' + encodeURIComponent(word);
+    var URL = googleUrl + encodeURIComponent(word);
 
     getJSON(URL, function(err, obj) {
         var imageUrls = drainUrlsFrom(obj);
@@ -101,10 +103,8 @@ function getImages(res, word) {
                 if (!!err) {
                     console.log(err);
                 } else {
-                    tempFile = name;
                     console.log(name);
-
-                    localNames.push(tempFile);
+                    localNames.push(name);
                 }
                 if (i < imageUrls.length - 1) {
                     callback.call(null, imageUrls[++i], retrieve);
@@ -174,8 +174,10 @@ function processImages(images, res) {
                 if (i < images.length - 1) {
                     var next = images[++i];
                     callback.call({}, next, modify);
+                    return;
                 }
                 if (i === images.length - 1) {
+                    console.log("sending result");
                     res.send(200, newRelativeFile);
                 }
             });

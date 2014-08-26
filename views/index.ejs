@@ -9,13 +9,17 @@
     <img id="result" src="/images/loading.gif" alt="">
     <script src="/javascripts/jquery-2.1.1.js"></script>
     <script>
-    $.ajax('/image')
-    .done(function(data) {
-        console.log(data);
-        $('#result').attr('src', data);
-    }).fail(function(a,b,c) {
-        console.log(b,c);
-    })
+    function getImage() {
+        $.ajax('/image')
+        .done(function(data) {
+            console.log(data);
+            $('#result').attr('src', data);
+            getImage();
+        }).fail(function(a,b,c) {
+            console.log(b,c);
+        });
+    }
+    getImage();
     </script>
   </body>
 </html>
