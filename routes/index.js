@@ -184,7 +184,7 @@ function processImages(images, res) {
 
             var newRelativeFile = '/images/image' + Date.now() + '.png';
             var newFile = target + newRelativeFile;
-            output.savePng(newFile, 0, function(err) {
+            output.savePng(newFile, 9, function(err) {
                 if (!!err) {
                     console.log(err);
                 }
