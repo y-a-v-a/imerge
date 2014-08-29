@@ -1,3 +1,4 @@
+var env = process.env.NODE_ENV || "development";
 var express = require('express');
 var router = express.Router();
 var http = require("http");
@@ -7,6 +8,7 @@ var gd = require('node-gd');
 var fs = require('fs');
 var crypto = require('crypto');
 var path = require('path');
+var config = require(__dirname + '/../conf/config')[env];
 
 function md5(str) {
   return crypto
@@ -17,17 +19,17 @@ function md5(str) {
 
 var fuzz = 30;
 
-var wordUrl = 'http://localhost:80/wordgenapi/www/v1/get.php?key=694b0426';
-var googleUrl = 'https://www.googleapis.com/customsearch/v1?key=AIzaSyCx5aAq9UeSnFbFxmihn6Vr6wCU2D-49O8'
-    + '&cx=001019564263977871109:d0hasykupmy&alt=json&searchType=image&imgType=photo&q=';
+//var wordUrl = 'http://localhost:80/wordgenapi/www/v1/get.php?key=694b0426';
+var artistUrl = config.artistUrl + config.artistApiKey;
+var googleUrl = 'https://www.googleapis.com/customsearch/v1?key=' + config.googleApiKey
+    + '&cx=' + config.googleCseId + '&alt=json&searchType=image&imgType=photo&q=';
 
-/* GET home page. */
 router.get('/', function(req, res) {
   res.render('index', { title: 'iMerge' });
 });
 
 router.get('/image', function(req, res) {
-    getWord(wordUrl, getImages.bind(null, res));
+    getArtist(artistUrl, getImages.bind(null, res));
 });
 
 function getJSON(URL, callback) {
@@ -57,6 +59,18 @@ function getWord(wordUrl, callback) {
             word = obj.response.word;
             console.log('word: ' + word);
             callback(word);
+        }
+    });
+}
+
+function getArtist(artistUrl, callback) {
+    getJSON(artistUrl, function(err, obj) {
+        var name = '';
+        console.log(obj);
+        if (obj && obj.code === 200) {
+            artist = obj.artist;
+            console.log('artist: ' + artist);
+            callback(artist);
         }
     });
 }
@@ -112,6 +126,9 @@ function getImages(res, word) {
                 }
                 if (i === imageUrls.length - 1) {
                     console.log('all images retrieved');
+                    if (localNames.length === 0) {
+                        res.send(200, '/images/loading.gif');
+                    }
                     processImages(localNames, res);
                 }
             });

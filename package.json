@@ -3,7 +3,9 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "start": "node ./bin/www"
+    "start": "node ./bin/www",
+    "decrypt": "decrypt conf/config.js.cast5 conf/config.js",
+    "encrypt": "encrypt conf/config.js conf/config.js.cast5"
   },
   "dependencies": {
     "express": "~4.2.0",
@@ -13,7 +15,6 @@
     "body-parser": "~1.0.0",
     "debug": "~0.7.4",
     "ejs": "~0.8.5",
-    "node-gd": "^0.2.3",
-    "async": "0.9.0"
+    "node-gd": "^0.2.3"
   }
 }
