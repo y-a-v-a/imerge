@@ -19,7 +19,6 @@ function md5(str) {
 
 var fuzz = 30;
 
-//var wordUrl = 'http://localhost:80/wordgenapi/www/v1/get.php?key=694b0426';
 var artistUrl = config.artistUrl + config.artistApiKey;
 var googleUrl = 'https://www.googleapis.com/customsearch/v1?key=' + config.googleApiKey
     + '&cx=' + config.googleCseId + '&alt=json&searchType=image&imgType=photo&q=';
@@ -28,8 +27,61 @@ router.get('/', function(req, res) {
   res.render('index', { title: 'iMerge' });
 });
 
+// middleware to get an artist name
+router.use('/image', function(req, res, next) {
+    getJSON(artistUrl, function(err, obj) {
+        if (err) {
+            next(err);
+        }
+        if (obj && obj.code === 200) {
+            req.artist = obj.artist;
+            console.log('artist: ' + req.artist);
+            next();
+        }
+    });
+});
+
+// middleware to get an array of three iamge URLs
+router.use('/image', function(req, res, next) {
+    var URL = googleUrl + encodeURIComponent(req.artist);
+
+    getJSON(URL, function(err, obj) {
+        if (err) {
+            next(err);
+        }
+        var imageUrls = drainUrlsFrom(obj);
+        var i = 0;
+        var localNames = [];
+
+        function retrieve(image, callback) {
+            getImage(image, function(err, name) {
+                if (err) {
+                    console.log(err); // silently fail
+                } else {
+                    console.log(name);
+                    localNames.push(name);
+                }
+                if (i < imageUrls.length - 1) {
+                    callback.call(null, imageUrls[++i], retrieve);
+                    return;
+                }
+                if (i === imageUrls.length - 1) {
+                    console.log('all images retrieved');
+                    if (localNames.length === 0) {
+                        res.send(200, '/images/loading.gif');
+                    }
+                    req.localNames = localNames;
+                    next();
+                }
+            });
+        }
+        retrieve(imageUrls[i], retrieve);
+    });
+});
+
+// call to process images
 router.get('/image', function(req, res) {
-    getArtist(artistUrl, getImages.bind(null, res));
+    processImages(req.localNames, res);
 });
 
 function getJSON(URL, callback) {
@@ -48,30 +100,7 @@ function getJSON(URL, callback) {
             callback(null, obj);
         });
     }).on('error', function(e) {
-        console.log('Error ' + e);
-    });
-}
-
-function getWord(wordUrl, callback) {
-    getJSON(wordUrl, function(err, obj) {
-        var word = '';
-        if (obj.response && obj.response.code === 200) {
-            word = obj.response.word;
-            console.log('word: ' + word);
-            callback(word);
-        }
-    });
-}
-
-function getArtist(artistUrl, callback) {
-    getJSON(artistUrl, function(err, obj) {
-        var name = '';
-        console.log(obj);
-        if (obj && obj.code === 200) {
-            artist = obj.artist;
-            console.log('artist: ' + artist);
-            callback(artist);
-        }
+        callback(e);
     });
 }
 
@@ -87,7 +116,7 @@ function getImage(URL, callback) {
             var buffer = Buffer.concat(converter.data);
             var img = gd.createFromJpegPtr(buffer);
             if (img === null) {
-                callback(new Error('No image!'), '');
+                callback(new Error('No image!'));
                 return false;
             }
             var data = new Buffer(img.jpegPtr(100), 'binary');
@@ -100,41 +129,7 @@ function getImage(URL, callback) {
             });
         });
     }).on('error', function(e) {
-        console.log('Error ' + e);
-    });
-}
-
-function getImages(res, word) {
-    var URL = googleUrl + encodeURIComponent(word);
-
-    getJSON(URL, function(err, obj) {
-        var imageUrls = drainUrlsFrom(obj);
-        var i = 0;
-        var localNames = [];
-
-        function retrieve(image, callback) {
-            getImage(image, function(err, name) {
-                if (!!err) {
-                    console.log(err);
-                } else {
-                    console.log(name);
-                    localNames.push(name);
-                }
-                if (i < imageUrls.length - 1) {
-                    callback.call(null, imageUrls[++i], retrieve);
-                    return;
-                }
-                if (i === imageUrls.length - 1) {
-                    console.log('all images retrieved');
-                    if (localNames.length === 0) {
-                        res.send(200, '/images/loading.gif');
-                    }
-                    processImages(localNames, res);
-                }
-            });
-        }
-
-        retrieve(imageUrls[i], retrieve);
+        callback(e);
     });
 }
 
@@ -163,7 +158,7 @@ function processImages(images, res) {
 
     function modify(image, callback) {
         gd.openJpeg(image, function(err, input) {
-            if (!!err) {
+            if (err) {
                 console.log(err);
             }
             var temp = gd.createTrueColor(800, 600);
@@ -185,7 +180,7 @@ function processImages(images, res) {
             var newRelativeFile = '/images/image' + Date.now() + '.png';
             var newFile = target + newRelativeFile;
             output.savePng(newFile, 9, function(err) {
-                if (!!err) {
+                if (err) {
                     console.log(err);
                 }
                 if (i < images.length - 1) {
@@ -212,7 +207,7 @@ function getConverter() {
     converter._write = function (chunk, encoding, callback) {
         var curr = this.data.push(chunk);
         if (curr !== this.data.length) {
-            return cb(new Error('Error pushing buffer to stack'));
+            cb(new Error('Error pushing buffer to stack'));
         } else {
             callback(null);
         }
@@ -238,10 +233,10 @@ function rgbAsColor(r,g,b) {
 function setTransparentFuzzy(color, fuzz) {
     var arr = colorAsRGB(color);
     var bottomLimit = arr.map(function(colorVal, idx) {
-        return Math.max(0, colorVal - fuzz);
+        return Math.max(0, colorVal - fuzz); // dont get below 0
     });
     var topLimit = arr.map(function(colorVal, idx) {
-        return Math.min(255, colorVal + fuzz);
+        return Math.min(255, colorVal + fuzz); // dont go above 255
     });
     bottomLimitColor = rgbAsColor.apply({}, bottomLimit);
     topLimitColor = rgbAsColor.apply({}, topLimit);
