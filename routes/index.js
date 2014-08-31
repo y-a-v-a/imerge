@@ -1,4 +1,3 @@
-var env = process.env.NODE_ENV || "development";
 var express = require('express');
 var router = express.Router();
 var http = require("http");
@@ -8,28 +7,21 @@ var gd = require('node-gd');
 var fs = require('fs');
 var crypto = require('crypto');
 var path = require('path');
-var config = require(__dirname + '/../conf/config')[env];
 
 function md5(str) {
-  return crypto
+    return crypto
     .createHash('md5')
     .update(str)
     .digest('hex');
 }
 
-var fuzz = 30;
-
-var artistUrl = config.artistUrl + config.artistApiKey;
-var googleUrl = 'https://www.googleapis.com/customsearch/v1?key=' + config.googleApiKey
-    + '&cx=' + config.googleCseId + '&alt=json&searchType=image&imgType=photo&q=';
-
 router.get('/', function(req, res) {
-  res.render('index', { title: 'iMerge' });
+    res.render('index', { title: 'iMerge' });
 });
 
 // middleware to get an artist name
 router.use('/image', function(req, res, next) {
-    getJSON(artistUrl, function(err, obj) {
+    getJSON(req.app.get('artistUrl'), function(err, obj) {
         if (err) {
             next(err);
         }
@@ -43,7 +35,7 @@ router.use('/image', function(req, res, next) {
 
 // middleware to get an array of three iamge URLs
 router.use('/image', function(req, res, next) {
-    var URL = googleUrl + encodeURIComponent(req.artist);
+    var URL = req.app.get('googleUrl') + encodeURIComponent(req.artist);
 
     getJSON(URL, function(err, obj) {
         if (err) {
@@ -81,7 +73,7 @@ router.use('/image', function(req, res, next) {
 
 // call to process images
 router.get('/image', function(req, res) {
-    processImages(req.localNames, res);
+    processImages(req.localNames, req, res);
 });
 
 function getJSON(URL, callback) {
@@ -146,7 +138,7 @@ function drainUrlsFrom(obj) {
     return result;
 }
 
-function processImages(images, res) {
+function processImages(images, req, res) {
     var target = path.normalize(__dirname + '/../public');
     var output = gd.createTrueColor(800, 600);
     output.saveAlpha(1);
@@ -168,7 +160,7 @@ function processImages(images, res) {
             var randomY = Math.floor(Math.random() * input.height);
             var color = input.getTrueColorPixel(randomX, randomY);
 
-            setTransparentFuzzy.call(temp, color, fuzz);
+            setTransparentFuzzy.call(temp, color, req.app.get('fuzz'));
 
             var colorArray = colorAsRGB(color);
             var alpha = temp.colorExact.apply(temp, colorArray);

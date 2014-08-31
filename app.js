@@ -1,18 +1,26 @@
-var express = require('express');
 var path = require('path');
+var env = process.env.NODE_ENV || "development";
+
+var express = require('express');
 var favicon = require('static-favicon');
 var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
 
-var routes = require('./routes/index');
-var users = require('./routes/users');
+var config = require(__dirname + '/conf/config')[env];
 
 var app = express();
+var routes = require('./routes/index');
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
+
+// App specific settings
+app.set('artistUrl', config.artistUrl + config.artistApiKey);
+app.set('googleUrl', 'https://www.googleapis.com/customsearch/v1?key=' + config.googleApiKey
+    + '&cx=' + config.googleCseId + '&alt=json&searchType=image&imgType=photo&q=');
+app.set('fuzz', 30);
 
 app.use(favicon());
 app.use(logger('dev'));
@@ -22,7 +30,6 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', routes);
-app.use('/users', users);
 
 /// catch 404 and forward to error handler
 app.use(function(req, res, next) {
