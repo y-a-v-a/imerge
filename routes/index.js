@@ -7,6 +7,7 @@ var gd = require('node-gd');
 var fs = require('fs');
 var crypto = require('crypto');
 var path = require('path');
+var app = require('../app').app;
 
 function md5(str) {
     return crypto
@@ -15,14 +16,31 @@ function md5(str) {
     .digest('hex');
 }
 
+var fileStorage = __dirname + '/..' + app.get('googleCache');
+var memoryStorage = app.get('memoryStorage');
+
+// watch cache dir for changes
+// in case of a change, read file and add to memory
+fs.watch(fileStorage, function(event, filename) {
+    if (event === 'rename' && filename.indexOf('.json') !== -1) {
+        fs.readFile(fileStorage + '/' + filename, { encoding: 'utf8' }, function(err, data) {
+            if (err) throw err;
+            var key = filename.substring(filename.lastIndexOf('/'), filename.indexOf('.json'));
+            memoryStorage[filename] = data;
+            console.log(filename + ' added to memoryStorage');
+        });
+    }
+});
+
 router.get('/', function(req, res) {
     res.render('index', { title: 'iMerge' });
 });
 
 // middleware to get an artist name
 router.use('/image', function(req, res, next) {
-    getJSON(req.app.get('artistUrl'), function(err, obj) {
+    getJSON(req.app.get('artistUrl'), false, function(err, obj) {
         if (err) {
+            console.log('Is artist API running?!');
             next(err);
         }
         if (obj && obj.code === 200) {
@@ -33,11 +51,11 @@ router.use('/image', function(req, res, next) {
     });
 });
 
-// middleware to get an array of three iamge URLs
+// middleware to get an array of three image URLs
 router.use('/image', function(req, res, next) {
     var URL = req.app.get('googleUrl') + encodeURIComponent(req.artist);
 
-    getJSON(URL, function(err, obj) {
+    getJSON(URL, true, function(err, obj) {
         if (err) {
             next(err);
         }
@@ -76,9 +94,19 @@ router.get('/image', function(req, res) {
     processImages(req.localNames, req, res);
 });
 
-function getJSON(URL, callback) {
+function getJSON(URL, shouldCache, callback) {
     var protocol = /^https/.test(URL) ? https : http;
+    var key = md5(URL) + '.json'
+    var filename = fileStorage + '/' + key;
+
+    if (typeof memoryStorage[key] !== 'undefined') {
+        console.log('Found data in cache.');
+        callback(null, JSON.parse(memoryStorage[key]));
+        return;
+    }
+    
     protocol.get(URL, function(response) {
+        console.log('Consulting ' + URL);
         var converter = getConverter();
         response.on('data', function (chunk) {
             converter.write(chunk);
@@ -89,7 +117,20 @@ function getJSON(URL, callback) {
             var json = buffer.toString();
 
             var obj = JSON.parse(json);
-            callback(null, obj);
+            if (shouldCache) {
+                if (!fs.existsSync(filename)) {
+                    fs.appendFile(filename, json, function(err) {
+                        if (err) throw err;
+                        console.log('Trying to store Google response in json file');
+                        callback(null, obj);
+                    });
+                } else {
+                    console.log('File exists: ' + filename);
+                    callback(null, obj);
+                }
+            } else {
+                callback(null, obj);
+            }
         });
     }).on('error', function(e) {
         callback(e);

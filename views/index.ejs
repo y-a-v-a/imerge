@@ -14,7 +14,8 @@
         .done(function(data) {
             console.log(data);
             $('#result').attr('src', data);
-            getImage();
+            setTimeout(getImage, 12000);
+            
         }).fail(function(a,b,c) {
             console.log(b,c);
         });
