@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
+      "pre-install": "chmod 777 cache && chmod 777 cache/google && chmod 777 public/images",
     "start": "node ./bin/www",
     "decrypt": "decrypt conf/config.js.cast5 conf/config.js",
     "encrypt": "encrypt conf/config.js conf/config.js.cast5"

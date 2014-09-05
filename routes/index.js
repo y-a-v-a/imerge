@@ -157,6 +157,7 @@ function getImage(URL, callback) {
             fs.exists(newName, function(exists) {
                 if (!exists) {
                     img.saveJpeg(newName, 50);
+                    img.destroy();
                 }
                 callback(null, newName);
             });
@@ -200,6 +201,7 @@ function processImages(images, req, res) {
             var randomX = Math.floor(Math.random() * input.width);
             var randomY = Math.floor(Math.random() * input.height);
             var color = input.getTrueColorPixel(randomX, randomY);
+            input.destroy();
 
             setTransparentFuzzy.call(temp, color, req.app.get('fuzz'));
 
@@ -209,6 +211,7 @@ function processImages(images, req, res) {
             temp.colorTransparent(alpha);
 
             temp.copyMerge(output, 0, 0, 0, 0, 800, 600, 100);
+            temp.destroy();
 
             var newRelativeFile = '/images/image' + Date.now() + '.png';
             var newFile = target + newRelativeFile;
@@ -223,6 +226,7 @@ function processImages(images, req, res) {
                 }
                 if (i === images.length - 1) {
                     console.log("sending result");
+                    output.destroy();
                     res.send(200, newRelativeFile);
                 }
             });
