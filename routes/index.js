@@ -7,6 +7,7 @@ var gd = require('node-gd');
 var fs = require('fs');
 var crypto = require('crypto');
 var path = require('path');
+var EventEmitter = require("events").EventEmitter;
 var app = require('../app').app;
 
 function md5(str) {
@@ -184,6 +185,7 @@ function processImages(images, req, res) {
     var target = path.normalize(__dirname + '/../public');
     var output = gd.createTrueColor(800, 600);
     output.saveAlpha(1);
+    var cache = [];
 
     var white = output.colorAllocate(255, 255, 255, 100);
     output.fill(0, 0, white);
@@ -220,6 +222,7 @@ function processImages(images, req, res) {
                     console.log(err);
                 }
                 if (i < images.length - 1) {
+                    cache.push(newFile);
                     var next = images[++i];
                     callback.call({}, next, modify);
                     return;
@@ -227,6 +230,7 @@ function processImages(images, req, res) {
                 if (i === images.length - 1) {
                     console.log("sending result");
                     output.destroy();
+                    deleteMergeCache.emit('delete', cache);
                     res.send(200, newRelativeFile);
                 }
             });
@@ -287,3 +291,15 @@ function setTransparentFuzzy(color, fuzz) {
         }
     }
 }
+
+ 
+var deleteMergeCache = new EventEmitter();
+
+deleteMergeCache.on('delete', function (files) {
+    for(var i = 0; i < files.length; i++) {
+        fs.unlink(files[i], function(err) {
+            if (err) console.log(err);
+        });
+    }
+});
+ 
