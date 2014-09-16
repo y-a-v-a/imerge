@@ -26,7 +26,6 @@ fs.watch(fileStorage, function(event, filename) {
     if (event === 'rename' && filename.indexOf('.json') !== -1) {
         fs.readFile(fileStorage + '/' + filename, { encoding: 'utf8' }, function(err, data) {
             if (err) throw err;
-            var key = filename.substring(filename.lastIndexOf('/'), filename.indexOf('.json'));
             memoryStorage[filename] = data;
             console.log(filename + ' added to memoryStorage');
         });
@@ -97,7 +96,7 @@ router.get('/image', function(req, res) {
 
 function getJSON(URL, shouldCache, callback) {
     var protocol = /^https/.test(URL) ? https : http;
-    var key = md5(URL) + '.json'
+    var key = md5(URL) + '.json';
     var filename = fileStorage + '/' + key;
 
     if (typeof memoryStorage[key] !== 'undefined') {
@@ -172,7 +171,7 @@ function drainUrlsFrom(obj) {
     var result = [];
     if (obj.items.length > 0) {
         while (result.length < 3) {
-            item = obj.items[Math.floor(Math.random() * obj.items.length)].link;
+            item = obj.items[(Math.random() * obj.items.length) | 0].link;
             if (result.indexOf(item) === -1) {
                 result.push(item);
             }
@@ -235,7 +234,7 @@ function processImages(images, req, res) {
                 }
             });
         });
-    };
+    }
 
     modify(images[i], modify);
 }
@@ -279,8 +278,8 @@ function setTransparentFuzzy(color, fuzz) {
     var topLimit = arr.map(function(colorVal, idx) {
         return Math.min(255, colorVal + fuzz); // dont go above 255
     });
-    bottomLimitColor = rgbAsColor.apply({}, bottomLimit);
-    topLimitColor = rgbAsColor.apply({}, topLimit);
+    bottomLimitColor = rgbAsColor.apply(null, bottomLimit);
+    topLimitColor = rgbAsColor.apply(null, topLimit);
 
     for(var i = 0; i < this.width; i++) {
         for (var j = 0; j < this.height; j++) {
@@ -292,12 +291,12 @@ function setTransparentFuzzy(color, fuzz) {
     }
 }
 
- 
+// use custom event to unlink unused files asynchronously
 var deleteMergeCache = new EventEmitter();
 
 deleteMergeCache.on('delete', function (files) {
-    for(var i = 0; i < files.length; i++) {
-        fs.unlink(files[i], function(err) {
+    while(files.length > 0) {
+        fs.unlink(files.shift(), function(err) {
             if (err) console.log(err);
         });
     }
