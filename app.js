@@ -23,16 +23,10 @@ app.set('googleUrl', 'https://www.googleapis.com/customsearch/v1?key=' + config.
 app.set('googleCache', config.googleCache);
 app.set('fuzz', 30);
 
-var cacheFiles = fs.readdirSync(__dirname + app.get('googleCache'));
-var memoryStorage = {};
-for (var i = 0; i < cacheFiles.length; i++) {
-    console.log('Reading ' + cacheFiles[i]);
-    var filename = __dirname + app.get('googleCache') + '/' + cacheFiles[i];
-    if (filename.indexOf('.json') !== -1) {
-        memoryStorage[cacheFiles[i]] = fs.readFileSync(filename, { encoding: 'utf8' });
-    }
-}
-app.set('memoryStorage', memoryStorage);
+
+var cache = require('./lib/cache.js');
+cache.loadGoogleCache();
+cache.loadImageCache();
 
 var routes = require('./routes/index');
 var content = require('./routes/content');

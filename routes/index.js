@@ -19,6 +19,7 @@ function md5(str) {
 
 var fileStorage = __dirname + '/..' + app.get('googleCache');
 var memoryStorage = app.get('memoryStorage');
+var imageCache = app.get('imageCache');
 var artist;
 
 // watch cache dir for changes
@@ -303,27 +304,33 @@ function setTransparentFuzzy(color, fuzz) {
     }
 }
 
-var imageCache = [];
-
 function getRandomImage() {
-    if (imageCache.length === 0) {
-        var files = fs.readdirSync(__dirname + '/../public/images');
-
-        for (var i = 0; i < files.length; i++) {
-            if (/^image.*png$/.test(files[i])) {
-                imageCache.push('/images/' + files[i]);
-            }
-        }
+    if (imageCache.length > 0) {
+        return imageCache[Math.floor(Math.random() * imageCache.length)];
     }
-    return imageCache[Math.floor(Math.random() * imageCache.length)];
+    throw new Error('imageCache is empty!');
 }
 
+/**
+ * Vincent Bruijn to vincent_bruijn
+ * Harvey's 2nd Pub tp harvey_s_2nd_pub
+ */
 function slugifyName(string) {
     return string.toLowerCase().trim().replace(/[^a-z0-9]/g,'_').replace(/_+/g, '_');
 }
 
+/**
+ * image12315124Xandy_warholX.png to Andy Warhol
+ * image12235245Xharvey_s_2nd_pubX.png to Harvey S 2nd Pub
+ */
 function pretifyName(string) {
-    return string.replace(/^.*?X/, '').replace(/X.*/,'').split('_').map(function(el, idx) { return el.charAt(0).toUpperCase() + el.slice(1);}).join(' ');
+    var value = string.replace(/^.*?X/, '').replace(/X.*/,'').split('_');
+    if (value.length > 0) {
+        value = value.map(function(el, idx) {
+            return el.charAt(0).toUpperCase() + el.slice(1);
+        });
+    }
+    return value.join(' ');
 }
 
 // use custom event to unlink unused files asynchronously
