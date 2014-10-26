@@ -1,16 +1,32 @@
 body {
-  font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
+  font: 14px Helvetica, Arial, sans-serif;
+  text-rendering: optimizeLegibility;
 }
 
 a {
   color: #00B7FF;
 }
 
-h1 {
+header {
     text-align: center;
+}
+
+h1, h2, h3 {
+    display: inline-block;
 }
 
 img {
     display: block;
     margin: 0 auto;
+}
+
+article {
+    width: 600px;
+    margin: 0 auto;
+}
+
+p {
+    text-indent: 1em;
+    margin-bottom: 1em;
+    line-height: 1.5;
 }

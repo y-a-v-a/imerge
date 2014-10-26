@@ -19,6 +19,7 @@ function md5(str) {
 
 var fileStorage = __dirname + '/..' + app.get('googleCache');
 var memoryStorage = app.get('memoryStorage');
+var artist;
 
 // watch cache dir for changes
 // in case of a change, read file and add to memory
@@ -38,6 +39,16 @@ router.get('/', function(req, res) {
 
 // middleware to get an artist name
 router.use('/image', function(req, res, next) {
+    if (Math.round(Math.random() * 2) >= 1) {
+        var file = getRandomImage();
+        var name = file.indexOf('X.png') > -1 ? pretifyName(file) : file;
+
+        res.send(200, JSON.stringify({
+            image: file,
+            artist: name
+        }));
+        return;
+    }
     getJSON(req.app.get('artistUrl'), false, function(err, obj) {
         if (err) {
             console.log('Is artist API running?!');
@@ -45,6 +56,7 @@ router.use('/image', function(req, res, next) {
         }
         if (obj && obj.code === 200) {
             req.artist = obj.artist;
+            artist = obj.artist;
             console.log('artist: ' + req.artist);
             next();
         }
@@ -214,7 +226,7 @@ function processImages(images, req, res) {
             temp.copyMerge(output, 0, 0, 0, 0, 800, 600, 100);
             temp.destroy();
 
-            var newRelativeFile = '/images/image' + Date.now() + '.png';
+            var newRelativeFile = '/images/image' + Date.now() + 'X' + slugifyName(artist) + 'X.png';
             var newFile = target + newRelativeFile;
             output.savePng(newFile, 9, function(err) {
                 if (err) {
@@ -230,7 +242,7 @@ function processImages(images, req, res) {
                     console.log("sending result");
                     output.destroy();
                     deleteMergeCache.emit('delete', cache);
-                    res.send(200, newRelativeFile);
+                    res.send(200, JSON.stringify({image:newRelativeFile, artist: artist}));
                 }
             });
         });
@@ -289,6 +301,29 @@ function setTransparentFuzzy(color, fuzz) {
             }
         }
     }
+}
+
+var imageCache = [];
+
+function getRandomImage() {
+    if (imageCache.length === 0) {
+        var files = fs.readdirSync(__dirname + '/../public/images');
+
+        for (var i = 0; i < files.length; i++) {
+            if (/^image.*png$/.test(files[i])) {
+                imageCache.push('/images/' + files[i]);
+            }
+        }
+    }
+    return imageCache[Math.floor(Math.random() * imageCache.length)];
+}
+
+function slugifyName(string) {
+    return string.toLowerCase().trim().replace(/[^a-z0-9]/g,'_').replace(/_+/g, '_');
+}
+
+function pretifyName(string) {
+    return string.replace(/^.*?X/, '').replace(/X.*/,'').split('_').map(function(el, idx) { return el.charAt(0).toUpperCase() + el.slice(1);}).join(' ');
 }
 
 // use custom event to unlink unused files asynchronously

@@ -35,6 +35,7 @@ for (var i = 0; i < cacheFiles.length; i++) {
 app.set('memoryStorage', memoryStorage);
 
 var routes = require('./routes/index');
+var content = require('./routes/content');
 
 app.use(favicon());
 app.use(logger('dev'));
@@ -44,6 +45,7 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', routes);
+app.use('/about', content);
 
 /// catch 404 and forward to error handler
 app.use(function(req, res, next) {

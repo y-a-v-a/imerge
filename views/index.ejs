@@ -1,26 +1,30 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title><%= title %></title>
-    <link rel='stylesheet' href='/stylesheets/style.css' />
-  </head>
-  <body>
-    <h1><%= title %></h1>
-    <img id="result" src="/images/loading.gif" alt="">
-    <script src="/javascripts/jquery-2.1.1.js"></script>
-    <script>
-    function getImage() {
-        $.ajax('/image')
-        .done(function(data) {
-            console.log(data);
-            $('#result').attr('src', data);
-            setTimeout(getImage, 12000);
-            
-        }).fail(function(a,b,c) {
-            console.log(b,c);
-        });
-    }
-    getImage();
-    </script>
-  </body>
+    <head>
+        <title><%= title %></title>
+        <link rel='stylesheet' href='/stylesheets/style.css' />
+    </head>
+    <body>
+        <header>
+            <h1><%= title %><span></span></h1> <a href="/about">About</a>
+        </header>
+        <img id="result" src="/images/image1409949959894.png" alt="">
+        <script src="/javascripts/jquery-2.1.1.js"></script>
+        <script>
+        function getImage() {
+            $.ajax('/image')
+            .done(function(data) {
+                var resp = JSON.parse(data);
+                $('#result').attr('src', resp.image);
+                $('#result').attr('alt', resp.artist);
+                $('span').text(' • ' + resp.artist);
+                setTimeout(getImage, 12000);
+
+            }).fail(function(a,b,c) {
+                console.log(b,c);
+            });
+        }
+        getImage();
+        </script>
+    </body>
 </html>
