@@ -9,6 +9,7 @@ var crypto = require('crypto');
 var path = require('path');
 var EventEmitter = require("events").EventEmitter;
 var app = require('../app').app;
+var cache = require('../lib/cache.js');
 
 function md5(str) {
     return crypto
@@ -19,7 +20,6 @@ function md5(str) {
 
 var fileStorage = __dirname + '/..' + app.get('googleCache');
 var memoryStorage = app.get('memoryStorage');
-var imageCache = app.get('imageCache');
 var artist;
 
 // watch cache dir for changes
@@ -40,16 +40,14 @@ router.get('/', function(req, res) {
 
 // middleware to get an artist name
 router.use('/image', function(req, res, next) {
-    if (Math.round(Math.random() * 2) >= 1) {
-        var file = getRandomImage();
-        var name = file.indexOf('X.png') > -1 ? pretifyName(file) : file;
+    var json = cache.getRandomImage();
+    console.log(json);
 
-        res.send(200, JSON.stringify({
-            image: file,
-            artist: name
-        }));
+    if (json !== false) {
+        res.send(200, json);
         return;
     }
+
     getJSON(req.app.get('artistUrl'), false, function(err, obj) {
         if (err) {
             console.log('Is artist API running?!');
@@ -304,33 +302,12 @@ function setTransparentFuzzy(color, fuzz) {
     }
 }
 
-function getRandomImage() {
-    if (imageCache.length > 0) {
-        return imageCache[Math.floor(Math.random() * imageCache.length)];
-    }
-    throw new Error('imageCache is empty!');
-}
-
 /**
  * Vincent Bruijn to vincent_bruijn
  * Harvey's 2nd Pub tp harvey_s_2nd_pub
  */
 function slugifyName(string) {
     return string.toLowerCase().trim().replace(/[^a-z0-9]/g,'_').replace(/_+/g, '_');
-}
-
-/**
- * image12315124Xandy_warholX.png to Andy Warhol
- * image12235245Xharvey_s_2nd_pubX.png to Harvey S 2nd Pub
- */
-function pretifyName(string) {
-    var value = string.replace(/^.*?X/, '').replace(/X.*/,'').split('_');
-    if (value.length > 0) {
-        value = value.map(function(el, idx) {
-            return el.charAt(0).toUpperCase() + el.slice(1);
-        });
-    }
-    return value.join(' ');
 }
 
 // use custom event to unlink unused files asynchronously
