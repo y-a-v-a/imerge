@@ -41,7 +41,6 @@ router.get('/', function(req, res) {
 // middleware to get an artist name
 router.use('/image', function(req, res, next) {
     var json = cache.getRandomImage();
-    console.log(json);
 
     if (json !== false) {
         res.send(200, json);

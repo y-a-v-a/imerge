@@ -10,12 +10,14 @@
   },
   "dependencies": {
     "express": "~4.2.0",
-    "static-favicon": "~1.0.0",
+    "serve-favicon": "2.1.4",
     "morgan": "~1.0.0",
     "cookie-parser": "~1.0.1",
     "body-parser": "~1.0.0",
-    "debug": "~0.7.4",
     "ejs": "~0.8.5",
     "node-gd": "^0.2.3"
+  },
+  "devDependencies": {
+    "debug": "~0.7.4"
   }
 }
