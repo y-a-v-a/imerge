@@ -1,6 +1,6 @@
 {
   "name": "imerge",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
       "pre-install": "chmod 777 cache && chmod 777 cache/google && chmod 777 public/images",
