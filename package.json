@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-      "pre-install": "chmod 777 cache && chmod 777 cache/google && chmod 777 public/images",
+    "pre-install": "chmod 777 cache && chmod 777 cache/google && chmod 777 public/images",
     "start": "node ./bin/www",
     "decrypt": "decrypt conf/config.js.cast5 conf/config.js",
     "encrypt": "encrypt conf/config.js conf/config.js.cast5"
@@ -15,9 +15,10 @@
     "cookie-parser": "~1.0.1",
     "body-parser": "~1.0.0",
     "ejs": "~0.8.5",
-    "node-gd": "^0.2.3"
+    "node-gd": "file:../node-gd"
   },
   "devDependencies": {
-    "debug": "~0.7.4"
+    "debug": "~0.7.4",
+    "gulp": "^3.8.9"
   }
 }

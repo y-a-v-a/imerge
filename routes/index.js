@@ -81,11 +81,11 @@ router.use('/image', function(req, res, next) {
                     console.log(name);
                     localNames.push(name);
                 }
-                if (i < imageUrls.length - 1) {
-                    callback.call(null, imageUrls[++i], retrieve);
+                if (imageUrls.length > 0) {
+                    callback.call(null, imageUrls.pop(), retrieve);
                     return;
                 }
-                if (i === imageUrls.length - 1) {
+                if (imageUrls.length === 0) {
                     console.log('all images retrieved');
                     if (localNames.length === 0) {
                         res.send(200, '/images/loading.gif');
@@ -95,7 +95,7 @@ router.use('/image', function(req, res, next) {
                 }
             });
         }
-        retrieve(imageUrls[i], retrieve);
+        retrieve(imageUrls.pop(), retrieve);
     });
 });
 
@@ -114,7 +114,7 @@ function getJSON(URL, shouldCache, callback) {
         callback(null, JSON.parse(memoryStorage[key]));
         return;
     }
-    
+
     protocol.get(URL, function(response) {
         console.log('Consulting ' + URL);
         var converter = getConverter();
@@ -149,29 +149,55 @@ function getJSON(URL, shouldCache, callback) {
 
 function getImage(URL, callback) {
     var protocol = /^https/.test(URL) ? https : http;
+
     protocol.get(URL, function(response) {
-        var converter = getConverter();
-        response.on('data', function (chunk) {
-            converter.write(chunk);
+        var extension;
+        var regex = /image\/(jpg|jpeg|png|gif)/g;
+        var matches = regex.exec(response.headers['content-type']);
+        if (matches !== null) {
+            extension = matches[1].replace('e', '');
+        } else {
+            console.log(response.headers['content-type']);
+            return callback('Not a good MIME-type!');
+        }
+        var fileName = path.normalize(__dirname + '/../cache/' + md5(URL) + '.' + extension);
+
+        var wstream;
+        fs.exists(fileName, function(exists) {
+            if (!exists) {
+                wstream = fs.createWriteStream(fileName);
+                response.on('data', function(chunk) {
+                    wstream.write(chunk);
+                });
+                response.on('end', function() {
+                    wstream.end();
+                });
+            }
+            callback(null, fileName);
         });
 
-        response.on("end", function() {
-            var buffer = Buffer.concat(converter.data);
-            var img = gd.createFromJpegPtr(buffer);
-            if (img === null) {
-                callback(new Error('No image!'));
-                return false;
-            }
-            var data = new Buffer(img.jpegPtr(100), 'binary');
-            var newName = path.normalize(__dirname + '/../cache/' + md5(data.toString('ascii')) + '.jpg');
-            fs.exists(newName, function(exists) {
-                if (!exists) {
-                    img.saveJpeg(newName, 50);
-                    img.destroy();
-                }
-                callback(null, newName);
-            });
-        });
+        // var converter = getConverter();
+        // response.on('data', function (chunk) {
+        //     converter.write(chunk);
+        // });
+        //
+        // response.on("end", function() {
+        //     var buffer = Buffer.concat(converter.data);
+        //     var img = gd.createFromJpegPtr(buffer);
+        //     if (img === null) {
+        //         callback(new Error('No image!'));
+        //         return false;
+        //     }
+        //     var data = new Buffer(img.jpegPtr(100), 'binary');
+        //     var newName = path.normalize(__dirname + '/../cache/' + md5(data.toString('ascii')) + '.jpg');
+        //     fs.exists(newName, function(exists) {
+        //         if (!exists) {
+        //             img.saveJpeg(newName, 50);
+        //             img.destroy();
+        //         }
+        //         callback(null, newName);
+        //     });
+        // });
     }).on('error', function(e) {
         callback(e);
     });
@@ -192,21 +218,22 @@ function drainUrlsFrom(obj) {
 
 function processImages(images, req, res) {
     var target = path.normalize(__dirname + '/../public');
-    var output = gd.createTrueColor(800, 600);
+    var output = gd.createTrueColorSync(800, 600);
     output.saveAlpha(1);
     var cache = [];
 
     var white = output.colorAllocate(255, 255, 255, 100);
     output.fill(0, 0, white);
-    
+
     var i = 0;
 
     function modify(image, callback) {
-        gd.openJpeg(image, function(err, input) {
+        var method = /\.jpg/.test(image) ? 'openJpeg' : 'openPng';
+        gd[method](image, function(err, input) {
             if (err) {
                 console.log(err);
             }
-            var temp = gd.createTrueColor(800, 600);
+            var temp = gd.createTrueColorSync(800, 600);
             input.copyResized(temp, 0, 0, 0, 0, 800, 600, input.width, input.height);
 
             var randomX = Math.floor(Math.random() * input.width);
@@ -257,7 +284,7 @@ function getConverter() {
     converter._write = function (chunk, encoding, callback) {
         var curr = this.data.push(chunk);
         if (curr !== this.data.length) {
-            cb(new Error('Error pushing buffer to stack'));
+            callback(new Error('Error pushing buffer to stack'));
         } else {
             callback(null);
         }
@@ -319,4 +346,4 @@ deleteMergeCache.on('delete', function (files) {
         });
     }
 });
- 
+
