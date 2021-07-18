@@ -4,23 +4,26 @@
         <title><%= title %></title>
         <link rel='stylesheet' href='/stylesheets/style.css' />
     </head>
-    <body>
+    <body style="background-image: url('/images/image1409949959894.png');">
         <header>
             <h1><%= title %><span></span></h1> <a href="/about">About</a>
         </header>
-        <img id="result" src="/images/image1409949959894.png" alt="">
-        <script src="/javascripts/jquery-2.1.1.js"></script>
         <script>
         function getImage() {
-            $.ajax('/image')
-            .done(function(data) {
-                var resp = JSON.parse(data);
-                $('#result').attr('src', resp.image);
-                $('#result').attr('alt', resp.artist);
-                $('span').text(' • ' + resp.artist);
-                setTimeout(getImage, 12000);
+            const span = document.querySelector('span');
 
-            }).fail(function(a,b,c) {
+            fetch('/image')
+            .then(response => {
+                if (response.status === 200) {
+                    response.json().then(function(resp) {
+                        document.body.style.backgroundImage = 'url(\'' + resp.image + '\')';
+                        document.body.setAttribute('data-artist', resp.artist);
+                        span.innerText = ' • ' + resp.artist;
+                    });
+                }
+
+                setTimeout(getImage, 12000);
+            }).catch(function(a,b,c) {
                 console.log(b,c);
             });
         }
