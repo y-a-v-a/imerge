@@ -9,13 +9,13 @@
     "encrypt": "encrypt conf/config.js conf/config.js.cast5"
   },
   "dependencies": {
-    "express": "~4.2.0",
-    "serve-favicon": "2.1.4",
-    "morgan": "~1.0.0",
-    "cookie-parser": "~1.0.1",
     "body-parser": "~1.0.0",
+    "cookie-parser": "~1.0.1",
     "ejs": "~0.8.5",
-    "node-gd": "file:../node-gd"
+    "express": "~4.2.0",
+    "morgan": "~1.0.0",
+    "node-gd": "^1.5.0",
+    "serve-favicon": "2.1.4"
   },
   "devDependencies": {
     "debug": "~0.7.4",
