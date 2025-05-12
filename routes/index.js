@@ -1,349 +1,346 @@
-var express = require('express');
-var router = express.Router();
-var http = require("http");
-var https = require("https");
-var stream = require('stream');
-var gd = require('node-gd');
-var fs = require('fs');
-var crypto = require('crypto');
-var path = require('path');
-var EventEmitter = require("events").EventEmitter;
-var app = require('../app').app;
-var cache = require('../lib/cache.js');
+const env = process.env.NODE_ENV || "development";
+import express from 'express';
+const router = express.Router();
+import http from "http";
+import https from "https";
+import stream from 'stream';
+import gd from 'node-gd';
+import fs from 'fs';
+import path from 'path';
+import EventEmitter from "events";
+import * as cache from '../lib/cache.mjs';
+import mainConfig from '../conf/config.js'
+import {slugifyName, colorAsRGB, rgbAsColor, drainUrlsFrom, md5} from '../lib/utils.mjs';
+import debugModule from 'debug';
 
-function md5(str) {
-    return crypto
-    .createHash('md5')
-    .update(str)
-    .digest('hex');
+const debug = debugModule('imerge');
+const config = mainConfig[env];
+
+const RESULT_WIDTH = 1920;
+const RESULT_HEIGHT = 1080;
+
+let fileStorage = path.resolve(config.googleCache);
+let memoryStorage = {};
+let artist;
+
+export async function initGoogleCache() {
+  await cache.loadGoogleCache();
+  const watchCacheEmitter = cache.watchGoogleCache();
+
+  watchCacheEmitter.on('update', function(data) {
+    memoryStorage = {...memoryStorage, ...data};
+  });
 }
 
-var fileStorage = __dirname + '/..' + app.get('googleCache');
-var memoryStorage = app.get('memoryStorage');
-var artist;
-
-// watch cache dir for changes
-// in case of a change, read file and add to memory
-fs.watch(fileStorage, function(event, filename) {
-    if (event === 'rename' && filename.indexOf('.json') !== -1) {
-        fs.readFile(fileStorage + '/' + filename, { encoding: 'utf8' }, function(err, data) {
-            if (err) throw err;
-            memoryStorage[filename] = data;
-            console.log(filename + ' added to memoryStorage');
-        });
-    }
-});
-
 router.get('/', function(req, res) {
-    res.render('index', { title: 'iMerge' });
+  res.render('index', { title: 'iMerge' });
 });
 
 // middleware to get an artist name
 router.use('/image', function(req, res, next) {
-    var json = cache.getRandomImage();
+  const json = cache.getRandomImage();
 
-    if (json !== false) {
-        res.send(200, json);
-        return;
+  if (json !== false) {
+    res.send(200, json);
+    return;
+  }
+
+  const artistURL = req.app.get('artistUrl');
+  getJSON(artistURL, false, function(err, obj) {
+    if (err) {
+      debug('Is artist API running?!');
+      next(err);
     }
-
-    getJSON(req.app.get('artistUrl'), false, function(err, obj) {
-        if (err) {
-            console.log('Is artist API running?!');
-            next(err);
-        }
-        if (obj && obj.code === 200) {
-            req.artist = obj.artist;
-            artist = obj.artist;
-            console.log('artist: ' + req.artist);
-            next();
-        }
-    });
+    if (obj && obj.code === 200) {
+      req.artist = obj.artist;
+      artist = obj.artist;
+      debug('Artist name from API is ' + req.artist);
+      next();
+    }
+  });
 });
 
 // middleware to get an array of three image URLs
 router.use('/image', function(req, res, next) {
-    var URL = req.app.get('googleUrl') + encodeURIComponent(req.artist);
+  var URL = req.app.get('googleUrl') + encodeURIComponent(req.artist);
 
-    getJSON(URL, true, function(err, obj) {
+  debug(`Google custom search URL ${URL}`)
+
+  getJSON(URL, true, function(err, obj) {
+    var error;
+    // console.log(obj.error);
+    if (err || obj.error) {
+      error = err || obj.error;
+      next(error);
+    }
+    var imageUrls = drainUrlsFrom(obj);
+    var i = 0;
+    var localNames = [];
+
+    function retrieve(image, callback) {
+      getImage(image, function(err, name) {
         if (err) {
-            next(err);
+          debug(err); // silently fail
+        } else {
+          debug(`Retrieved ${name}`);
+          localNames.push(name);
         }
-        var imageUrls = drainUrlsFrom(obj);
-        var i = 0;
-        var localNames = [];
+        if (imageUrls.length > 0) {
+          debug(`Trying to retrieve next image`);
+          callback.call(null, imageUrls.pop(), retrieve);
+          return;
+        }
+        if (imageUrls.length === 0) {
+          debug('All images retrieved:');
+          debug(localNames);
 
-        function retrieve(image, callback) {
-            getImage(image, function(err, name) {
-                if (err) {
-                    console.log(err); // silently fail
-                } else {
-                    console.log(name);
-                    localNames.push(name);
-                }
-                if (imageUrls.length > 0) {
-                    callback.call(null, imageUrls.pop(), retrieve);
-                    return;
-                }
-                if (imageUrls.length === 0) {
-                    console.log('all images retrieved');
-                    if (localNames.length === 0) {
-                        res.send(200, '/images/loading.gif');
-                    }
-                    req.localNames = localNames;
-                    next();
-                }
-            });
+          req.localNames = localNames;
+          next();
         }
-        retrieve(imageUrls.pop(), retrieve);
-    });
+      });
+    }
+    retrieve(imageUrls.pop(), retrieve);
+  });
 });
 
 // call to process images
 router.get('/image', function(req, res) {
-    processImages(req.localNames, req, res);
+  if (req.localNames.length === 0) {
+    return res.send(200, JSON.stringify({image:'/images/loading.gif', artist: ''}));
+  }
+  return processImages(req.localNames, req, res);
 });
 
 function getJSON(URL, shouldCache, callback) {
-    var protocol = /^https/.test(URL) ? https : http;
-    var key = md5(URL) + '.json';
-    var filename = fileStorage + '/' + key;
+  const protocol = /^https/.test(URL) ? https : http;
+  var key = md5(URL) + '.json';
+  var filename = fileStorage + '/' + key;
 
-    if (typeof memoryStorage[key] !== 'undefined') {
-        console.log('Found data in cache.');
-        callback(null, JSON.parse(memoryStorage[key]));
-        return;
-    }
+  if (typeof memoryStorage[key] !== 'undefined') {
+    debug('Found JSON data in cache.');
+    callback(null, JSON.parse(memoryStorage[key]));
+    return;
+  }
 
-    protocol.get(URL, function(response) {
-        console.log('Consulting ' + URL);
-        var converter = getConverter();
-        response.on('data', function (chunk) {
-            converter.write(chunk);
-        });
-
-        response.on("end", function() {
-            var buffer = Buffer.concat(converter.data);
-            var json = buffer.toString();
-
-            var obj = JSON.parse(json);
-            if (shouldCache) {
-                if (!fs.existsSync(filename)) {
-                    fs.appendFile(filename, json, function(err) {
-                        if (err) throw err;
-                        console.log('Trying to store Google response in json file');
-                        callback(null, obj);
-                    });
-                } else {
-                    console.log('File exists: ' + filename);
-                    callback(null, obj);
-                }
-            } else {
-                callback(null, obj);
-            }
-        });
-    }).on('error', function(e) {
-        callback(e);
+  protocol.get(URL, function(response) {
+    debug('Consulting Google CSE URL...');
+    var converter = getConverter();
+    response.on('data', function (chunk) {
+      converter.write(chunk);
     });
+
+    response.on("end", function() {
+      var buffer = Buffer.concat(converter.data);
+      var json = buffer.toString();
+
+      var obj = JSON.parse(json);
+      if (shouldCache) {
+        if (!fs.existsSync(filename)) {
+          fs.appendFile(filename, json, function(err) {
+            if (err) throw err;
+            debug('Storing Google CSE response in json file');
+            callback(null, obj);
+          });
+        } else {
+          debug('File exists ' + filename);
+          callback(null, obj);
+        }
+      } else {
+        callback(null, obj);
+      }
+      converter = null;
+    });
+  }).on('error', function(e) {
+    callback(e);
+  });
 }
 
 function getImage(URL, callback) {
-    var protocol = /^https/.test(URL) ? https : http;
+  var protocol = /^https/.test(URL) ? https : http;
 
-    protocol.get(URL, function(response) {
-        var extension;
-        var regex = /image\/(jpg|jpeg|png|gif)/g;
-        var matches = regex.exec(response.headers['content-type']);
-        if (matches !== null) {
-            extension = matches[1].replace('e', '');
-        } else {
-            console.log(response.headers['content-type']);
-            return callback('Not a good MIME-type!');
-        }
-        var fileName = path.normalize(__dirname + '/../cache/' + md5(URL) + '.' + extension);
+  debug(`Retrieving ${URL}`);
 
-        var wstream;
-        fs.exists(fileName, function(exists) {
-            if (!exists) {
-                wstream = fs.createWriteStream(fileName);
-                response.on('data', function(chunk) {
-                    wstream.write(chunk);
-                });
-                response.on('end', function() {
-                    wstream.end();
-                });
-            }
-            callback(null, fileName);
-        });
+  protocol.get(URL, {agent:false}, function(response) {
+    var extension;
+    var regex = /image\/(jpg|jpeg|png|gif)/g;
+    var matches = regex.exec(response.headers['content-type']);
+    var converter;
 
-        // var converter = getConverter();
-        // response.on('data', function (chunk) {
-        //     converter.write(chunk);
-        // });
-        //
-        // response.on("end", function() {
-        //     var buffer = Buffer.concat(converter.data);
-        //     var img = gd.createFromJpegPtr(buffer);
-        //     if (img === null) {
-        //         callback(new Error('No image!'));
-        //         return false;
-        //     }
-        //     var data = new Buffer(img.jpegPtr(100), 'binary');
-        //     var newName = path.normalize(__dirname + '/../cache/' + md5(data.toString('ascii')) + '.jpg');
-        //     fs.exists(newName, function(exists) {
-        //         if (!exists) {
-        //             img.saveJpeg(newName, 50);
-        //             img.destroy();
-        //         }
-        //         callback(null, newName);
-        //     });
-        // });
-    }).on('error', function(e) {
-        callback(e);
-    });
-}
-
-function drainUrlsFrom(obj) {
-    var result = [];
-    if (obj.items.length > 0) {
-        while (result.length < 3) {
-            item = obj.items[(Math.random() * obj.items.length) | 0].link;
-            if (result.indexOf(item) === -1) {
-                result.push(item);
-            }
-        }
+    if (matches !== null) {
+      extension = matches[1].replace('e', '');
+    } else {
+      debug(response.headers['content-type']);
+      return callback('Not a good MIME-type!');
     }
-    return result;
-}
+    var fileName = path.normalize('./cache/' + md5(URL) + '.' + extension);
 
-function processImages(images, req, res) {
-    var target = path.normalize(__dirname + '/../public');
-    var output = gd.createTrueColorSync(800, 600);
-    output.saveAlpha(1);
-    var cache = [];
+    if (extension === 'jpg') {
+      converter = getConverter();
+      response.on('data', function (chunk) {
+        converter.write(chunk);
+      });
 
-    var white = output.colorAllocate(255, 255, 255, 100);
-    output.fill(0, 0, white);
-
-    var i = 0;
-
-    function modify(image, callback) {
-        var method = /\.jpg/.test(image) ? 'openJpeg' : 'openPng';
-        gd[method](image, function(err, input) {
-            if (err) {
-                console.log(err);
-            }
-            var temp = gd.createTrueColorSync(800, 600);
-            input.copyResized(temp, 0, 0, 0, 0, 800, 600, input.width, input.height);
-
-            var randomX = Math.floor(Math.random() * input.width);
-            var randomY = Math.floor(Math.random() * input.height);
-            var color = input.getTrueColorPixel(randomX, randomY);
-            input.destroy();
-
-            setTransparentFuzzy.call(temp, color, req.app.get('fuzz'));
-
-            var colorArray = colorAsRGB(color);
-            var alpha = temp.colorExact.apply(temp, colorArray);
-
-            temp.colorTransparent(alpha);
-
-            temp.copyMerge(output, 0, 0, 0, 0, 800, 600, 100);
-            temp.destroy();
-
-            var newRelativeFile = '/images/image' + Date.now() + 'X' + slugifyName(artist) + 'X.png';
-            var newFile = target + newRelativeFile;
-            output.savePng(newFile, 9, function(err) {
-                if (err) {
-                    console.log(err);
-                }
-                if (i < images.length - 1) {
-                    cache.push(newFile);
-                    var next = images[++i];
-                    callback.call({}, next, modify);
-                    return;
-                }
-                if (i === images.length - 1) {
-                    console.log("sending result");
-                    output.destroy();
-                    deleteMergeCache.emit('delete', cache);
-                    res.send(200, JSON.stringify({image:newRelativeFile, artist: artist}));
-                }
+      response.on("end", function() {
+        var buffer = Buffer.concat(converter.data);
+        var img = gd.createFromJpegPtr(buffer);
+        if (img === null) {
+          callback(new Error('No image!'));
+          return false;
+        }
+        fs.exists(fileName, async function(exists) {
+          if (!exists) {
+            debug(`Saving ${fileName}`)
+            await img.saveJpeg(fileName, 70, function(error) {
+              if (error) {
+                return callback('Could not save Jpeg');
+              }
+              img.destroy();
+              converter = null;
+              debug('Done saving');
             });
+            callback(null, fileName);
+          } else {
+            img.destroy();
+            converter = null;
+            callback(null, fileName);
+          }
         });
+      });
+    } else {
+      fs.exists(fileName, function(exists) {
+        var wstream;
+        if (!exists) {
+          wstream = fs.createWriteStream(fileName);
+          response.on('data', function(chunk) {
+            wstream.write(chunk);
+          });
+          response.on('end', function() {
+            wstream.end();
+            debug(`Written ${fileName}`);
+            callback(null, fileName);
+          });
+        } else {
+          callback(null, fileName);
+        }
+      });
     }
 
-    modify(images[i], modify);
+  }).on('error', function(e) {
+    callback(e);
+  });
 }
 
-module.exports = router;
+async function processImages(images, req, res) {
+  if (!images.length) {
+    return;
+  }
+  var target = path.normalize('./public');
+  var output = await gd.createTrueColor(RESULT_WIDTH, RESULT_HEIGHT);
+  output.saveAlpha(1);
+  var cache = [];
+
+  var white = output.colorAllocate(255, 255, 255, 100);
+  output.fill(0, 0, white);
+
+  var i = 0;
+
+  async function modify(image, callback) {
+    debug(`About to open ${image}`);
+    var next = images[++i];
+
+    var input = await gd.openFile(image);//, function(err, input) {
+    if (!input) {
+      if (i < images.length) {
+        return callback.call({}, next, modify);
+      } else {
+        output.destroy();
+
+        return res.send(200, JSON.stringify({
+          image: '/images/loading.gif',
+          artist: ''
+        }));
+      }
+    }
+
+    var temp = await gd.createTrueColor(RESULT_WIDTH, RESULT_HEIGHT);
+    input.copyResized(temp, 0, 0, 0, 0, RESULT_WIDTH, RESULT_HEIGHT, input.width, input.height);
+
+    var randomX = Math.floor(Math.random() * input.width);
+    var randomY = Math.floor(Math.random() * input.height);
+    var color = input.getTrueColorPixel(randomX, randomY);
+
+    setTransparentFuzzy(temp, color, req.app.get('fuzz'));
+
+    var colorArray = colorAsRGB(color);
+    var alpha = temp.colorExact.apply(temp, colorArray);
+
+    temp.colorTransparent(alpha);
+
+    temp.copyMerge(output, 0, 0, 0, 0, RESULT_WIDTH, RESULT_HEIGHT, 100);
+
+    var newRelativeFile = '/images/image' + Date.now() + 'X' + slugifyName(artist) + 'X.jpg';
+    var newFile = target + newRelativeFile;
+
+    input.destroy();
+    temp.destroy();
+
+    await output.saveJpeg(newFile, 51);
+    if (i < images.length) {
+      cache.push(newFile);
+      return callback.call({}, next, modify);
+    }
+    if (i === images.length) {
+      output.destroy();
+      debug("Sending result");
+      deleteMergeCache.emit('delete', cache);
+
+      return res.status(200).send(JSON.stringify({
+        image: newRelativeFile,
+        artist: artist
+      }));
+    }
+  }
+
+  return modify(images[i], modify);
+}
+
+export default router;
 
 function getConverter() {
-    var converter = new stream.Writable({ highWaterMark: 65536 }); // 64kb
-    converter.data = [];
-    converter._write = function (chunk, encoding, callback) {
-        var curr = this.data.push(chunk);
-        if (curr !== this.data.length) {
-            callback(new Error('Error pushing buffer to stack'));
-        } else {
-            callback(null);
-        }
-    };
-    return converter;
-}
+  const converter = new stream.Writable({ highWaterMark: 65536 }); // 64kb
+  converter.data = [];
 
-function colorAsRGB(color) {
-    var res = [];
-    for(var i = 4; i > 0; i--) {
-        res.push(color & 255);
-        color >>= 8;
+  converter._write = function (chunk, encoding, callback) {
+    const curr = this.data.push(chunk);
+    if (curr !== this.data.length) {
+      callback(new Error('Error pushing buffer to stack'));
+    } else {
+      callback(null);
     }
+  };
 
-    res.pop(); // remove alpha
-    return res.reverse();
+  return converter;
 }
 
-function rgbAsColor(r,g,b) {
-    return (r << 16) + (g << 8) + b;
-}
+function setTransparentFuzzy(image, color, fuzz) {
+  debug('Set transparent fuzzy')
+  var arr = colorAsRGB(color);
+  var limit = arr.map(function(colorVal, idx) {
+    var direction = Math.round(Math.random()) === 0 ? -1 : 1;
+    return Math.min(255, colorVal + (fuzz * direction)); // dont go above 255
+  });
+  let limitColor = rgbAsColor.apply(null, limit);
 
-function setTransparentFuzzy(color, fuzz) {
-    var arr = colorAsRGB(color);
-    var bottomLimit = arr.map(function(colorVal, idx) {
-        return Math.max(0, colorVal - fuzz); // dont get below 0
-    });
-    var topLimit = arr.map(function(colorVal, idx) {
-        return Math.min(255, colorVal + fuzz); // dont go above 255
-    });
-    bottomLimitColor = rgbAsColor.apply(null, bottomLimit);
-    topLimitColor = rgbAsColor.apply(null, topLimit);
-
-    for(var i = 0; i < this.width; i++) {
-        for (var j = 0; j < this.height; j++) {
-            var val = this.getPixel(i, j);
-            if (val <= topLimitColor && val >= bottomLimitColor) {
-                this.setPixel(i, j, color);
-            }
-        }
-    }
-}
-
-/**
- * Vincent Bruijn to vincent_bruijn
- * Harvey's 2nd Pub tp harvey_s_2nd_pub
- */
-function slugifyName(string) {
-    return string.toLowerCase().trim().replace(/[^a-z0-9]/g,'_').replace(/_+/g, '_');
+  image.colorReplaceThreshold(limitColor, color, 8);
 }
 
 // use custom event to unlink unused files asynchronously
 var deleteMergeCache = new EventEmitter();
 
 deleteMergeCache.on('delete', function (files) {
-    while(files.length > 0) {
-        fs.unlink(files.shift(), function(err) {
-            if (err) console.log(err);
-        });
-    }
+  while(files.length > 0) {
+    fs.unlink(files.shift(), function(err) {
+      if (err) debug(err);
+    });
+  }
 });
-

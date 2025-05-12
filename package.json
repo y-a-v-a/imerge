@@ -2,23 +2,23 @@
   "name": "imerge",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "pre-install": "chmod 777 cache && chmod 777 cache/google && chmod 777 public/images",
-    "start": "node ./bin/www",
+    "start": "node ./bin/www.js",
     "decrypt": "decrypt conf/config.js.cast5 conf/config.js",
     "encrypt": "encrypt conf/config.js conf/config.js.cast5"
   },
   "dependencies": {
-    "body-parser": "~1.0.0",
-    "cookie-parser": "~1.0.1",
-    "ejs": "~0.8.5",
-    "express": "~4.2.0",
-    "morgan": "~1.0.0",
-    "node-gd": "^1.5.0",
-    "serve-favicon": "2.1.4"
-  },
+    "body-parser": "^1.19.0",
+    "cookie-parser": "^1.4.5",
+    "ejs": ">=2.5.5",
+    "express": "^4.17.1",
+    "morgan": "^1.10.0",
+    "node-gd": "^2",
+    "serve-favicon": "^2.5.0"
+  ,
   "devDependencies": {
-    "debug": "~0.7.4",
-    "gulp": "^3.8.9"
+    "debug": "^4.3.2"
   }
 }
